@@ -1,1 +1,894 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>收據 APP（單檔離線版｜內建六棟完整住戶）</title>
+<style>
+  :root{
+    --bg:#0f172a; --panel:#0b1220; --card:#111827; --muted:#94a3b8; --text:#e5e7eb; --accent:#22c55e; --danger:#ef4444; --info:#0ea5e9;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,"PingFang TC","Microsoft JhengHei",sans-serif}
+  .wrap{max-width:1200px;margin:24px auto;padding:16px}
+  h1{margin:0 0 8px;font-size:22px}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:16px}
+  .grid{display:grid;grid-template-columns:1.1fr .9fr;gap:12px}
+  .card{background:var(--card);border:1px solid #1f2937;border-radius:16px;padding:16px;box-shadow:0 6px 24px rgba(0,0,0,.25)}
+  label{display:block;font-size:13px;color:#cbd5e1;margin-bottom:4px}
+  input,select,textarea{width:100%;padding:10px 12px;border:1px solid #334155;border-radius:12px;background:#0b1220;color:#e5e7eb}
+  textarea{min-height:80px;resize:vertical}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+  .btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+  button{padding:10px 14px;border-radius:12px;border:1px solid #243041;background:#121a2b;color:#e5e7eb;cursor:pointer}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#052e16}
+  button.warn{background:var(--danger);border-color:var(--danger);color:#3f0a0a}
+  canvas{background:#0b1220;border:1px dashed #334155;border-radius:12px;width:100%;height:180px}
+  table{width:100%;border-collapse:collapse;margin-top:12px}
+  th,td{border-bottom:1px solid #243041;padding:8px 10px;text-align:left;font-size:13px}
+  tr:hover td{background:#0b1220}
+  .sep{height:1px;background:#223046;margin:16px 0}
+  .hint{font-size:12px;color:#9ca3af}
+  .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, "Liberation Mono", "Courier New", monospace}
+
+  /* 列印樣式 */
+  @media print{
+    body{background:white;color:black}
+    .no-print{display:none !important}
+    .receipt-paper{width:100%;margin:0;padding:0;border:none;box-shadow:none}
+    .wrap{max-width:none;margin:0;padding:0}
+  }
+  .receipt-paper{background:white;color:black;border-radius:12px;padding:16px}
+  .receipt-head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid #e5e7eb;padding-bottom:8px;margin-bottom:12px}
+  .receipt-title{font-size:20px;font-weight:700}
+  .receipt-meta{font-size:12px;color:#374151}
+  .receipt-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}
+  .sign-box{border:1px solid #e5e7eb;border-radius:8px;padding:12px;min-height:100px;display:flex;align-items:center;justify-content:center}
+  .sign-img{max-width:100%;max-height:140px}
+  .tbl{width:100%;border-collapse:collapse;margin-top:6px}
+  .tbl th,.tbl td{border:1px solid #e5e7eb;padding:6px 8px;font-size:12px}
+  .right{text-align:right}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>收據 APP（單檔離線版）</h1>
+  <div class="sub">內建甲 / 乙 / 丙 / 丁 / 戊 / 己 六棟完整住戶清單。可離線使用、可簽名、可列印（另存 PDF）。</div>
+
+  <div class="grid">
+    <div class="card">
+      <h3 style="margin-top:0">① 基本資料</h3>
+      <div class="row">
+        <div>
+          <label>收據號碼</label>
+          <input id="receiptNo" placeholder="如：R-2025-0001" />
+        </div>
+        <div>
+          <label>日期</label>
+          <input id="date" type="date" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>棟別</label>
+          <select id="building"></select>
+        </div>
+        <div>
+          <label>住址（含住戶代號）</label>
+          <select id="address"></select>
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>區權人（自動帶出）</label>
+          <input id="owner" disabled />
+        </div>
+        <div>
+          <label>經手人 / 管理員</label>
+          <input id="manager" placeholder="填入姓名" />
+        </div>
+      </div>
+
+      <div class="sep"></div>
+
+      <h3 style="margin-top:0">② 繳交月份</h3>
+      <div class="row3">
+        <div>
+          <label>起（年 / 月）</label>
+          <div class="row" style="grid-template-columns:1fr 1fr">
+            <select id="yStart"></select>
+            <select id="mStart"></select>
+          </div>
+        </div>
+        <div>
+          <label>訖（年 / 月）</label>
+          <div class="row" style="grid-template-columns:1fr 1fr">
+            <select id="yEnd"></select>
+            <select id="mEnd"></select>
+          </div>
+        </div>
+        <div>
+          <label>期數（自動）</label>
+          <input id="periods" class="mono" disabled />
+        </div>
+      </div>
+      <div class="hint">年下拉 2025–2027、月 1–12。若未來超出範圍，可直接用下方「自訂年月」欄位。</div>
+      <div class="row">
+        <div>
+          <label>自訂開始（YYYY-MM，可空）</label>
+          <input id="startCustom" type="month" />
+        </div>
+        <div>
+          <label>自訂結束（YYYY-MM，可空）</label>
+          <input id="endCustom" type="month" />
+        </div>
+      </div>
+
+      <div class="sep"></div>
+
+      <h3 style="margin-top:0">③ 金額（自動帶出，可手動調整）</h3>
+      <div class="row3">
+        <div>
+          <label>管理費（每期）</label>
+          <input id="feeMgmt" type="number" min="0" step="1" />
+        </div>
+        <div>
+          <label>車位清潔費（每期）</label>
+          <input id="feeParking" type="number" min="0" step="1" />
+        </div>
+        <div>
+          <label>電梯分攤費（每期）</label>
+          <input id="feeElev" type="number" min="0" step="1" />
+        </div>
+      </div>
+      <div class="row3">
+        <div>
+          <label>其他收入（一次性）</label>
+          <input id="feeOtherOnce" type="number" min="0" step="1" placeholder="如：磁扣、遙控器、零星收入" />
+        </div>
+        <div>
+          <label>減扣（每期）</label>
+          <input id="deductEach" type="number" min="0" step="1" value="0" />
+        </div>
+        <div>
+          <label>每月應繳總額（自動）</label>
+          <input id="monthlyTotal" class="mono" disabled />
+        </div>
+      </div>
+
+      <div class="sep"></div>
+
+      <h3 style="margin-top:0">④ 簽名</h3>
+      <canvas id="signPad" width="900" height="220"></canvas>
+      <div class="btns">
+        <button class="no-print" id="clearSign">清除簽名</button>
+      </div>
+
+      <div class="btns">
+        <button class="primary no-print" id="addRow">新增到列表</button>
+        <button class="no-print" id="printNow">列印 / 另存 PDF（本張）</button>
+      </div>
+      <div class="hint">列印時可選「另存為 PDF」。</div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0">設定 & 列表</h3>
+      <label>抬頭（社區名稱）</label>
+      <input id="orgName" placeholder="如：台南長億城 D 區 管理委員會" />
+      <label>社區資訊（統編 / 地址 / 電話）</label>
+      <textarea id="orgInfo" placeholder="統編：
+地址：
+電話："></textarea>
+
+      <div class="row">
+        <div>
+          <label>收據號碼前綴</label>
+          <input id="noPrefix" placeholder="如：R-2025-" />
+        </div>
+        <div>
+          <label>起始流水號（例如 1 代表 0001）</label>
+          <input id="noStart" type="number" min="1" step="1" placeholder="1" />
+        </div>
+      </div>
+      <div class="btns">
+        <button class="no-print" id="saveSettings">儲存設定</button>
+        <button class="no-print" id="resetSettings">清除設定</button>
+      </div>
+
+      <div class="sep"></div>
+
+      <h3 style="margin-top:0">已新增的收據</h3>
+      <table>
+        <thead><tr><th>收據號碼</th><th>年月區間</th><th>住址 / 代號</th><th>區權人</th><th class="right">金額</th><th class="no-print">操作</th></tr></thead>
+        <tbody id="list"></tbody>
+      </table>
+      <div class="btns">
+        <button class="warn no-print" id="clearList">清空列表</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="sep"></div>
+
+  <!-- 列印區 -->
+  <div class="card receipt-paper" id="printArea">
+    <div class="receipt-head">
+      <div>
+        <div class="receipt-title" id="p_orgName">收據</div>
+        <div class="receipt-meta" id="p_orgInfo"></div>
+      </div>
+      <div class="receipt-meta">
+        <div>日期：<span id="p_date"></span></div>
+        <div>收據號碼：<span id="p_receiptNo"></span></div>
+      </div>
+    </div>
+
+    <div class="receipt-grid">
+      <div><strong>住址：</strong><span id="p_fulladdr"></span></div>
+      <div><strong>住戶代號：</strong><span id="p_code"></span></div>
+      <div><strong>區權人：</strong><span id="p_owner"></span></div>
+      <div><strong>經手人：</strong><span id="p_manager"></span></div>
+      <div style="grid-column:1/3"><strong>繳交月份：</strong><span id="p_periodText"></span></div>
+    </div>
+
+    <table class="tbl" style="margin-top:10px">
+      <thead><tr><th>項目</th><th class="right">每期金額</th><th class="right">期數</th><th class="right">總額</th></tr></thead>
+      <tbody id="p_items"></tbody>
+      <tfoot>
+        <tr><th>每月應繳總額</th><td class="right" id="p_monthly"></td><td></td><td></td></tr>
+        <tr><th>減扣</th><td class="right" id="p_deduct_each"></td><td class="right" id="p_periods2"></td><td class="right" id="p_deduct_total"></td></tr>
+        <tr><th>其他收入（一次）</th><td></td><td></td><td class="right" id="p_other_once"></td></tr>
+        <tr><th style="font-size:15px">實收金額</th><td></td><td></td><td class="right" style="font-size:15px" id="p_grand"></td></tr>
+      </tfoot>
+    </table>
+
+    <div style="margin-top:12px">
+      <div><strong>簽名：</strong></div>
+      <div class="sign-box">
+        <img id="p_sign" class="sign-img" />
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============ 住戶主檔（TSV 內建） ============
+   欄位：住戶代號, 區權人, 管理費, 電梯維修, 管理費(50/坪), 車位, 採購電梯, 合計, 住址
+   說明：管理費(50/坪) = 每期管理費金額（你過去示例用的1,799 就在這欄）
+*/
+const MASTER_TSV = `住戶代號\t區權人\t管理費\t電梯維修\t管理費(50/坪)\t車位\t採購電梯\t合計\t住址
+01FD33\t林金鳳\t 1,333 \t 333 \t 1,666 \t500\t500\t 2,666 \t47-2  
+01FD35\t黃宜蓁\t 1,524 \t 381 \t 1,905 \t300\t500\t 2,705 \t47-1  2樓之
+02FD01\t王嘉慧\t 1,276 \t 319 \t 1,595 \t300\t500\t 2,395 \t47  2樓之2
+02FD02\t洪祥鑫\t 1,270 \t 318 \t 1,588 \t500\t500\t 2,588 \t47  2樓之1
+02FD03\t陳美樺\t 1,270 \t 318 \t 1,588 \t500\t500\t 2,588 \t47-7  2樓之2
+02FD05\t鄭森輝\t 1,276 \t 319 \t 1,595 \t500\t500\t 2,595 \t47-7  2樓之1
+02FD06\t林婉貞\t 1,365 \t 341 \t 1,706 \t\t500\t 2,206 \t47-6  2樓之6
+02FD07\t江昱緯\t 1,422 \t 356 \t 1,778 \t500\t500\t 2,778 \t47-6  2樓之7
+02FD08\t賴明維\t 1,052 \t 263 \t 1,315 \t\t500\t 1,815 \t47-6  2樓之1
+02FD09\t陳世昌\t 1,422 \t 356 \t 1,778 \t\t500\t 2,278 \t47-6  2樓之2
+02FD10\t林惠美\t 1,365 \t 341 \t 1,706 \t500\t500\t 2,706 \t47-6  2樓之3
+02FD11\t簡秀蘭\t 1,088 \t 272 \t 1,360 \t500\t500\t 2,360 \t47-6  2樓之5
+02FD12\t顏翰銘\t 1,276 \t 319 \t 1,595 \t500\t500\t 2,595 \t47-5  2樓之2
+02FD13\t江玥誼\t 1,270 \t 318 \t 1,588 \t\t500\t 2,088 \t47-5  2樓之1
+02FD15\t黃歆閔\t 1,270 \t 318 \t 1,588 \t\t500\t 2,088 \t47-3  2樓之2
+02FD16\t施文結\t 1,276 \t 319 \t 1,595 \t\t500\t 2,095 \t47-3  2樓之1
+02FD17\t吳伯逸\t 1,426 \t 357 \t 1,783 \t500\t500\t 2,783 \t47-1  2樓之5
+02FD18\t梁智詠\t 1,416 \t 354 \t 1,770 \t500\t500\t 2,770 \t47-1  2樓之6
+02FD19\t何李秀卿\t 966 \t 242 \t 1,208 \t\t500\t 1,708 \t47-1  2樓之7
+02FD20\t林英玫\t 1,088 \t 272 \t 1,360 \t\t500\t 1,860 \t47-1  2樓之8
+02FD21\t王南欽\t 1,371 \t 343 \t 1,714 \t500\t500\t 2,714 \t47-1  2樓之1
+02FD22\t高錦芝\t 1,419 \t 355 \t 1,774 \t\t500\t 2,274 \t47-1  2樓之2
+02FD23\t洪雅玲\t 1,102 \t 276 \t 1,378 \t\t500\t 1,878 \t47-1  2樓之3
+03FD01\t劉允生\t 1,295 \t 324 \t 1,619 \t500\t500\t 2,619 \t47  3樓之2
+03FD02\t李建瑩\t 1,288 \t 322 \t 1,610 \t500\t500\t 2,610 \t47  3樓之1
+03FD03\t塗秀琴\t 1,288 \t 322 \t 1,610 \t\t500\t 2,110 \t47-7  3樓之2
+03FD05\t林奕名\t 1,296 \t 324 \t 1,620 \t300\t500\t 2,420 \t47-7  3樓之1
+03FD06\t鄭伊庭\t 1,382 \t 346 \t 1,728 \t500\t500\t 2,728 \t47-6  3樓之6
+03FD07\t趙志展\t 1,438 \t 360 \t 1,798 \t500\t500\t 2,798 \t47-6  3樓之7
+03FD08\t許永寬\t 1,052 \t 263 \t 1,315 \t\t500\t 1,815 \t47-6  3樓之1
+03FD09\t黃靜芳\t 1,439 \t 360 \t 1,799 \t500\t500\t 2,799 \t47-6  3樓之2
+03FD10\t莊嘉發\t 1,381 \t 345 \t 1,726 \t500\t500\t 2,726 \t47-6  3樓之3
+03FD11\t黃思雅\t 1,093 \t 273 \t 1,366 \t\t500\t 1,866 \t47-6  3樓之5
+03FD12\t郭庭瑋\t 1,295 \t 324 \t 1,619 \t\t500\t 2,119 \t47-5  3樓之2
+03FD13\t莊鴻民\t 1,288 \t 322 \t 1,610 \t500\t500\t 2,610 \t47-5  3樓之1
+03FD15\t許珮琪\t 1,288 \t 322 \t 1,610 \t500\t500\t 2,610 \t47-3  3樓之2
+03FD16\t高聖淵\t 1,295 \t 324 \t 1,619 \t500\t500\t 2,619 \t47-3  3樓之1
+03FD17\t李宏德\t 1,442 \t 361 \t 1,803 \t500\t500\t 2,803 \t47-1  3樓之5
+03FD18\t蘇吉雄\t 1,433 \t 358 \t 1,791 \t\t500\t 2,291 \t47-1  3樓之6
+03FD19\t余美妤\t 966 \t 242 \t 1,208 \t\t500\t 1,708 \t47-1  3樓之7
+03FD20\t陳韋元\t 1,088 \t 272 \t 1,360 \t300\t500\t 2,160 \t47-1  3樓之8
+03FD21\t唐佳琪\t 1,388 \t 347 \t 1,735 \t500\t500\t 2,735 \t47-1  3樓之1
+03FD22\t楊雅惠\t 1,436 \t 359 \t 1,795 \t500\t500\t 2,795 \t47-1  3樓之2
+03FD23\t宋意涵\t 1,107 \t 277 \t 1,384 \t\t500\t 1,884 \t47-1  3樓之3
+04FD01\t王蕙敏\t 1,296 \t 324 \t 1,620 \t\t500\t 2,120 \t47  4樓之2
+04FD02\t王菘泰\t 1,289 \t 322 \t 1,611 \t\t500\t 2,111 \t47  4樓之1
+04FD03\t黃媺晴\t 1,289 \t 322 \t 1,611 \t\t500\t 2,111 \t47-7  4樓之2
+04FD05\t張倫愷\t 1,296 \t 324 \t 1,620 \t500\t500\t 2,620 \t47-7  4樓之1
+04FD06\t陳姿伶\t 1,382 \t 346 \t 1,728 \t500\t500\t 2,728 \t47-6  4樓之6
+04FD07\t郭書婷\t 1,439 \t 360 \t 1,799 \t500\t500\t 2,799 \t47-6  4樓之7
+04FD08\t林俊吉\t 1,053 \t 263 \t 1,316 \t500\t500\t 2,316 \t47-6  4樓之1
+04FD09\t李憲\t 1,439 \t 360 \t 1,799 \t500\t500\t 2,799 \t47-6  4樓之2
+04FD10\t朱育利\t 1,382 \t 346 \t 1,728 \t\t500\t 2,228 \t47-6  4樓之3
+04FD11\t呂玉慧\t 1,089 \t 272 \t 1,361 \t500\t500\t 2,361 \t47-6  4樓之5
+04FD12\t蘇秀雱\t 1,296 \t 324 \t 1,620 \t500\t500\t 2,620 \t47-5  4樓之2
+04FD13\t吳涵萍\t 1,289 \t 322 \t 1,611 \t\t500\t 2,111 \t47-5  4樓之1
+04FD15\t張簡美月\t 1,289 \t 322 \t 1,611 \t500\t500\t 2,611 \t47-3  4樓之2
+04FD16\t何坤城\t 1,296 \t 324 \t 1,620 \t500\t500\t 2,620 \t47-3  4樓之1
+04FD17\t林美慧、張清龍\t 1,443 \t 361 \t 1,804 \t500\t500\t 2,804 \t47-1  4樓之5
+04FD18\t林穎隆\t 1,433 \t 358 \t 1,791 \t500\t500\t 2,791 \t47-1  4樓之6
+04FD19\t許若凡\t 966 \t 242 \t 1,208 \t\t500\t 1,708 \t47-1  4樓之7
+04FD20\t高淑媛\t 1,089 \t 272 \t 1,361 \t500\t500\t 2,361 \t47-1  4樓之8
+04FD21\t吳英浩\t 1,388 \t 347 \t 1,735 \t500\t500\t 2,735 \t47-1  4樓之1
+04FD22\t陳立瑜\t 1,436 \t 359 \t 1,795 \t500\t500\t 2,795 \t47-1  4樓之2
+04FD23\t林軒仕\t 1,108 \t 277 \t 1,385 \t\t500\t 1,885 \t47-1  4樓之3
+05FD01\t周玉屏\t 1,296 \t 324 \t 1,620 \t\t500\t 2,120 \t47  5樓之2
+05FD02\t陳耿豪\t 1,289 \t 322 \t 1,611 \t\t500\t 2,111 \t47  5樓之1
+05FD03\t材昭富\t 1,289 \t 322 \t 1,611 \t500\t500\t 2,611 \t47-7  5樓之2
+05FD05\t陳麗金\t 1,296 \t 324 \t 1,620 \t500\t500\t 2,620 \t47-7  5樓之1
+05FD06\t吳姿郁\t 1,370 \t 343 \t 1,713 \t300\t500\t 2,513 \t47-6  5樓之6
+05FD07\t吳佳軒\t 1,439 \t 360 \t 1,799 \t500\t500\t 2,799 \t47-6  5樓之7
+05FD08\t許玄沂\t 1,053 \t 263 \t 1,316 \t500\t500\t 2,316 \t47-6  5樓之1
+05FD09\t陳秉翊\t 1,439 \t 360 \t 1,799 \t\t500\t 2,299 \t47-6  5樓之2
+05FD10\t陳美娟\t 1,382 \t 346 \t 1,728 \t1000\t500\t 3,228 \t47-6  5樓之3
+05FD11\t林素卿\t 1,089 \t 272 \t 1,361 \t500\t500\t 2,361 \t47-6  5樓之5
+05FD12\t黃俊雄\t 1,296 \t 324 \t 1,620 \t500\t500\t 2,620 \t47-5  5樓之2
+05FD13\t黃景同\t 1,289 \t 322 \t 1,611 \t\t500\t 2,111 \t47-5  5樓之1
+05FD15\t徐哲斌\t 1,289 \t 322 \t 1,611 \t500\t500\t 2,611 \t47-3  5樓之2
+05FD16\t毛美玉\t1296\t 324 \t 1,620 \t500\t500\t 2,620 \t47-3  5樓之1
+05FD17\t顏可鈞\t1443\t 361 \t 1,804 \t\t500\t 2,304 \t47-1  5樓之5
+05FD18\t黃蘭芳\t1433\t 358 \t 1,791 \t300\t500\t 2,591 \t47-1  5樓之6
+05FD19\t鄭麗萍\t966\t 242 \t 1,208 \t500\t500\t 2,208 \t47-1  5樓之7
+05FD20\t嚴淑娟\t1089\t 272 \t 1,361 \t\t500\t 1,861 \t47-1  5樓之8
+05FD21\t游麗紅\t1388\t 347 \t 1,735 \t300\t500\t 2,535 \t47-1  5樓之1
+05FD22\t林啟銘\t1436\t 359 \t 1,795 \t500\t500\t 2,795 \t47-1  5樓之2
+05FD23\t黃耀煌\t1108\t 277 \t 1,385 \t\t500\t 1,885 \t47-1  5樓之3
+06FD01\t梁鳳英\t1296\t 324 \t 1,620 \t500\t500\t 2,620 \t47  6樓之2
+06FD02\t吳富玲\t1289\t 322 \t 1,611 \t500\t500\t 2,611 \t47  6樓之1
+06FD03\t陳秀妃\t1289\t 322 \t 1,611 \t500\t500\t 2,611 \t47-7  6樓之2
+06FD05\t劉冠汶\t1296\t 324 \t 1,620 \t500\t500\t 2,620 \t47-7  6樓之1
+06FD06\t呂華忠\t1382\t 346 \t 1,728 \t500\t500\t 2,728 \t47-6  6樓之6
+06FD07\t黃沛禎.莊泓彬\t1439\t 360 \t 1,799 \t\t500\t 2,299 \t47-6  6樓之7
+06FD08\t曾志偉\t1053\t 263 \t 1,316 \t500\t500\t 2,316 \t47-6  6樓之1
+06FD09\t劉博杰\t1439\t 360 \t 1,799 \t500\t500\t 2,799 \t47-6  6樓之2
+06FD10\t張斐茹\t1382\t 346 \t 1,728 \t500\t500\t 2,728 \t47-6  6樓之3
+06FD11\t曹全東\t1089\t 272 \t 1,361 \t\t500\t 1,861 \t47-6  6樓之5
+06FD12\t鄭景維\t1296\t 324 \t 1,620 \t300\t500\t 2,420 \t47-5  6樓之2
+06FD13\t楊生平\t1289\t 322 \t 1,611 \t\t500\t 2,111 \t47-5  6樓之1
+06FD15\t郭有蘭\t1289\t 322 \t 1,611 \t500\t500\t 2,611 \t47-3  6樓之2
+06FD16\t張郁惠\t1296\t 324 \t 1,620 \t500\t500\t 2,620 \t47-3  6樓之1
+06FD17\t邱麗杶\t1443\t 361 \t 1,804 \t500\t500\t 2,804 \t47-1  6樓之5
+06FD18\t歐建宇\t1433\t 358 \t 1,791 \t500\t500\t 2,791 \t47-1  6樓之6
+06FD19\t李佳諭\t966\t 242 \t 1,208 \t\t500\t 1,708 \t47-1  6樓之7
+06FD20\t吳慧鈴\t1089\t 272 \t 1,361 \t500\t500\t 2,361 \t47-1  6樓之8
+06FD21\t陳進旺\t1388\t 347 \t 1,735 \t500\t500\t 2,735 \t47-1  6樓之1
+06FD22\t馬志如\t1436\t 359 \t 1,795 \t300\t500\t 2,595 \t47-1  6樓之2
+06FD23\t楊霈瑀\t1108\t 277 \t 1,385 \t500\t500\t 2,385 \t47-1  6樓之3
+07FD01\t陳靜梅、高世昌\t1296\t 324 \t 1,620 \t\t500\t 2,120 \t47  7樓之2
+07FD02\t藍彬諴\t1289\t 322 \t 1,611 \t500\t500\t 2,611 \t47  7樓之1
+07FD03\t賴裕文\t1289\t 322 \t 1,611 \t500\t500\t 2,611 \t47-7  7樓之2
+07FD05\t許啓彰\t1296\t 324 \t 1,620 \t\t500\t 2,120 \t47-7  7樓之1
+07FD06\t王仕俊\t1382\t 346 \t 1,728 \t\t500\t 2,228 \t47-6  7樓之6
+07FD07\t張宗源\t1439\t 360 \t 1,799 \t\t500\t 2,299 \t47-6  7樓之7
+07FD08\t何聖凱\t1053\t 263 \t 1,316 \t500\t500\t 2,316 \t47-6  7樓之1
+07FD09\t王瓊娟\t1439\t 360 \t 1,799 \t500\t500\t 2,799 \t47-6  7樓之2
+07FD10\t梁德信\t1382\t 346 \t 1,728 \t500\t500\t 2,728 \t47-6  7樓之3
+07FD11\t吳秋吟\t1089\t 272 \t 1,361 \t300\t500\t 2,161 \t47-6  7樓之5
+07FD12\t陳惠萍\t1296\t 324 \t 1,620 \t\t500\t 2,120 \t47-5  7樓之2
+07FD13\t楊舜盛\t1289\t 322 \t 1,611 \t\t500\t 2,111 \t47-5  7樓之1
+07FD15\t鍾莉莉\t1289\t 322 \t 1,611 \t500\t500\t 2,611 \t47-3  7樓之2
+07FD16\t薛義隆\t1296\t 324 \t 1,620 \t500\t500\t 2,620 \t47-3  7樓之1
+07FD17\t陳美燕\t1443\t 361 \t 1,804 \t\t500\t 2,304 \t47-1  7樓之5
+07FD18\t陳彥守\t1433\t 358 \t 1,791 \t\t500\t 2,291 \t47-1  7樓之6
+07FD19\t蔡玉美\t966\t 242 \t 1,208 \t\t500\t 1,708 \t47-1  7樓之7
+07FD20\t楊朝鈞\t1089\t 272 \t 1,361 \t500\t500\t 2,361 \t47-1  7樓之8
+07FD21\t林家伃\t1388\t 347 \t 1,735 \t\t500\t 2,235 \t47-1  7樓之1
+07FD22\t陳茜蓉\t1436\t 359 \t 1,795 \t\t500\t 2,295 \t47-1  7樓之2
+07FD23\t魏南來\t1108\t 277 \t 1,385 \t\t500\t 1,885 \t47-1  7樓之3
+08FD01\t沈孟鋒\t1296\t 324 \t 1,620 \t\t500\t 2,120 \t47  8樓之2
+08FD02\t莊月珍\t1289\t 322 \t 1,611 \t\t500\t 2,111 \t47  8樓之1
+08FD03\t顏詠弘\t1289\t 322 \t 1,611 \t500\t500\t 2,611 \t47-7  8樓之2
+08FD05\t胡燕璋\t1296\t 324 \t 1,620 \t500\t500\t 2,620 \t47-7  8樓之1
+08FD06\t張育菁\t1382\t 346 \t 1,728 \t\t500\t 2,228 \t47-6  8樓之6
+08FD07\t陳子惠\t1439\t 360 \t 1,799 \t500\t500\t 2,799 \t47-6  8樓之7
+08FD08\t孔慶友\t1053\t 263 \t 1,316 \t500\t500\t 2,316 \t47-6  8樓之1
+08FD09\t陳凱嘉\t1439\t 360 \t 1,799 \t500\t500\t 2,799 \t47-6  8樓之2
+08FD10\t黃韋博\t1382\t 346 \t 1,728 \t500\t500\t 2,728 \t47-6  8樓之3
+08FD11\t王淑慧\t1089\t 272 \t 1,361 \t\t500\t 1,861 \t47-6  8樓之5
+08FD12\t林沂萱\t1296\t 324 \t 1,620 \t500\t500\t 2,620 \t47-5  8樓之2
+08FD13\t吳清吉\t1289\t 322 \t 1,611 \t500\t500\t 2,611 \t47-5  8樓之1
+08FD15\t蔡伊芳\t1289\t 322 \t 1,611 \t500\t500\t 2,611 \t47-3  8樓之2
+08FD16\t葉長嘉\t1296\t 324 \t 1,620 \t\t500\t 2,120 \t47-3  8樓之1
+08FD17\t蔡美娟\t1443\t 361 \t 1,804 \t300\t500\t 2,604 \t47-1  8樓之5
+08FD18\t陳香蘭\t1433\t 358 \t 1,791 \t500\t500\t 2,791 \t47-1  8樓之6
+08FD19\t黃騰儀\t966\t 242 \t 1,208 \t\t500\t 1,708 \t47-1  8樓之7
+08FD20\t陳浚豪\t1089\t 272 \t 1,361 \t500\t500\t 2,361 \t47-1  8樓之8
+08FD21\t黃鑫豊\t1388\t 347 \t 1,735 \t500\t500\t 2,735 \t47-1  8樓之1
+08FD22\t楊雅琳\t1436\t 359 \t 1,795 \t500\t500\t 2,795 \t47-1  8樓之2
+08FD23\t王俊傑\t1108\t 277 \t 1,385 \t\t500\t 1,885 \t47-1  8樓之3
+09FD01\t陳玉容\t1296\t 324 \t 1,620 \t\t500\t 2,120 \t47  9樓之2
+09FD02\t林婉婷\t1289\t 322 \t 1,611 \t500\t500\t 2,611 \t47  9樓之1
+09FD03\t丘憶芳\t1289\t 322 \t 1,611 \t300\t500\t 2,411 \t47-7  9樓之2
+09FD05\t許綺礽\t1296\t 324 \t 1,620 \t300\t500\t 2,420 \t47-7  9樓之1
+09FD06\t郭家彤\t1382\t 346 \t 1,728 \t500\t500\t 2,728 \t47-6  9樓之6
+09FD07\t陳叔菁\t1439\t 360 \t 1,799 \t500\t500\t 2,799 \t47-6  9樓之7
+09FD08\t陳美俐\t1053\t 263 \t 1,316 \t\t500\t 1,816 \t47-6  9樓之1
+09FD09\t陳國憲\t1439\t 360 \t 1,799 \t500\t500\t 2,799 \t47-6  9樓之2
+09FD10\t陳蓉真\t1382\t 346 \t 1,728 \t500\t500\t 2,728 \t47-6  9樓之3
+09FD11\t王聖智\t1089\t 272 \t 1,361 \t500\t500\t 2,361 \t47-6  9樓之5
+09FD12\t向珈禎\t1296\t 324 \t 1,620 \t500\t500\t 2,620 \t47-5  9樓之2
+09FD13\t洪佩琳\t1289\t 322 \t 1,611 \t500\t500\t 2,611 \t47-5  9樓之1
+09FD15\t佘立維\t1290\t 323 \t 1,613 \t500\t500\t 2,613 \t47-3  9樓之2
+09FD16\t陳榮輝 許可亞\t1296\t 324 \t 1,620 \t500\t500\t 2,620 \t47-3  9樓之1
+09FD17\t李瑞生\t1443\t 361 \t 1,804 \t500\t500\t 2,804 \t47-1  9樓之5
+09FD18\t呂素娥\t1433\t 358 \t 1,791 \t500\t500\t 2,791 \t47-1  9樓之6
+09FD19\t吳淑美\t966\t 242 \t 1,208 \t\t500\t 1,708 \t47-1  9樓之7
+09FD20\t施雅慧\t1089\t 272 \t 1,361 \t\t500\t 1,861 \t47-1  9樓之8
+09FD21\t陳俊文\t1388\t 347 \t 1,735 \t\t500\t 2,235 \t47-1  9樓之1
+09FD22\t黃俊仁\t1436\t 359 \t 1,795 \t300\t500\t 2,595 \t47-1  9樓之2
+09FD23\t黃小玲\t1108\t 277 \t 1,385 \t\t500\t 1,885 \t47-1  9樓之3
+10FD01\t簡郁容\t1296\t 324 \t 1,620 \t500\t500\t 2,620 \t47  10樓之2
+10FD02\t張瀚元\t1289\t 322 \t 1,611 \t300\t500\t 2,411 \t47  10樓之1
+10FD03\t施珮琦\t1289\t 322 \t 1,611 \t500\t500\t 2,611 \t47-7  10樓之2
+10FD05\t趙振廷\t1296\t 324 \t 1,620 \t500\t500\t 2,620 \t47-7  10樓之1
+10FD06\t楊佳樺\t1382\t 346 \t 1,728 \t\t500\t 2,228 \t47-6  10樓之6
+10FD07\t黃振豐\t1439\t 360 \t 1,799 \t500\t500\t 2,799 \t47-6  10樓之7
+10FD08\t莊慶耀\t1053\t 263 \t 1,316 \t\t500\t 1,816 \t47-6  10樓之1
+10FD09\t侯順發\t1439\t 360 \t 1,799 \t\t500\t 2,299 \t47-6  10樓之2
+10FD10\t王淑演\t1382\t 346 \t 1,728 \t500\t500\t 2,728 \t47-6  10樓之3
+10FD11\t陳靜怡\t1089\t 272 \t 1,361 \t\t500\t 1,861 \t47-6  10樓之5
+10FD12\t何炎勳\t1296\t 324 \t 1,620 \t\t500\t 2,120 \t47-5  10樓之2
+10FD13\t王昱翊\t1289\t 322 \t 1,611 \t\t500\t 2,111 \t47-5  10樓之1
+10FD15\t許芮慈\t1289\t 322 \t 1,611 \t\t500\t 2,111 \t47-3  10樓之2
+10FD16\t張育輔\t1296\t 324 \t 1,620 \t\t500\t 2,120 \t47-3  10樓之1
+10FD17\t周麗嫻\t1443\t 361 \t 1,804 \t500\t500\t 2,804 \t47-1  10樓之5
+10FD18\t徐唐台美\t1433\t 358 \t 1,791 \t500\t500\t 2,791 \t47-1  10樓之6
+10FD19\t朱麗真\t966\t 242 \t 1,208 \t\t500\t 1,708 \t47-1  10樓之7
+10FD20\t謝鎧鴻\t1089\t 272 \t 1,361 \t500\t500\t 2,361 \t47-1  10樓之8
+10FD21\t林渝馨\t1388\t 347 \t 1,735 \t500\t500\t 2,735 \t47-1  10樓之1
+10FD22\t韓欣芸\t1436\t 359 \t 1,795 \t500\t500\t 2,795 \t47-1  10樓之2
+10FD23\t馮德悠\t1108\t 277 \t 1,385 \t\t500\t 1,885 \t47-1  10樓之3
+11FD01\t吳茗香\t1296\t 324 \t 1,620 \t\t500\t 2,120 \t47  11樓之2
+11FD02\t陳月理\t1289\t 322 \t 1,611 \t500\t500\t 2,611 \t47  11樓之1
+11FD03\t鍾劉珠秀\t1289\t 322 \t 1,611 \t500\t500\t 2,611 \t47-7  11樓之2
+11FD05\t陳婉婷\t1296\t 324 \t 1,620 \t500\t500\t 2,620 \t47-7  11樓之1
+11FD06\t洪郡英1\t1382\t 346 \t 1,728 \t500\t500\t 2,728 \t47-6  11樓之6
+11FD07\t蔡文彭\t1439\t 360 \t 1,799 \t500\t500\t 2,799 \t47-6  11樓之7
+11FD08\t林南宏\t1053\t 263 \t 1,316 \t500\t500\t 2,316 \t47-6  11樓之1
+11FD09\t李月雲\t1439\t 360 \t 1,799 \t\t500\t 2,299 \t47-6  11樓之2
+11FD10\t石繡薇\t1382\t 346 \t 1,728 \t500\t500\t 2,728 \t47-6  11樓之3
+11FD11\t許淑娟\t1089\t 272 \t 1,361 \t\t500\t 1,861 \t47-6  11樓之5
+11FD12\t陳怡玲\t1296\t 324 \t 1,620 \t\t500\t 2,120 \t47-5  11樓之2
+11FD13\t洪郡英\t1289\t 322 \t 1,611 \t\t500\t 2,111 \t47-5  11樓之1
+11FD15\t康淑玲\t1289\t 322 \t 1,611 \t300\t500\t 2,411 \t47-3  11樓之2
+11FD16\t王宥程\t1296\t 324 \t 1,620 \t\t500\t 2,120 \t47-3  11樓之1
+11FD17\t費文元\t1443\t 361 \t 1,804 \t500\t500\t 2,804 \t47-1  11樓之5
+11FD18\t郭豐年\t1434\t 359 \t 1,792 \t300\t500\t 2,592 \t47-1  11樓之6
+11FD19\t劉淑萍\t966\t 242 \t 1,208 \t\t500\t 1,708 \t47-1  11樓之7
+11FD20\t楊人龍\t1089\t 272 \t 1,361 \t500\t500\t 2,361 \t47-1  11樓之8
+11FD21\t羅紫婕\t1388\t 347 \t 1,735 \t1000\t500\t 3,235 \t47-1  11樓之1
+11FD22\t謝籽萌\t1436\t 359 \t 1,795 \t500\t500\t 2,795 \t47-1  11樓之2
+11FD23\t陳冠勳\t1108\t 277 \t 1,385 \t\t500\t 1,885 \t47-1  11樓之3
+12FD01\t阮璿玲\t1296\t 324 \t 1,620 \t\t500\t 2,120 \t47  12樓之2
+12FD02\t洪欣怡\t1289\t 322 \t 1,611 \t\t500\t 2,111 \t47  12樓之1
+12FD03\t徐佳鳳\t1289\t 322 \t 1,611 \t\t500\t 2,111 \t47-7  12樓之2
+12FD05\t劉家華\t1296\t 324 \t 1,620 \t\t500\t 2,120 \t47-7  12樓之1
+12FD06\t湯淑芬\t1382\t 346 \t 1,728 \t\t500\t 2,228 \t47-6  12樓之6
+12FD07\t李曉芸\t1439\t 360 \t 1,799 \t500\t500\t 2,799 \t47-6  12樓之7
+12FD08\t林承鋒\t1053\t 263 \t 1,316 \t500\t500\t 2,316 \t47-6  12樓之1
+12FD09\t程光輝\t1439\t 360 \t 1,799 \t300\t500\t 2,599 \t47-6  12樓之2
+12FD10\t張俊仁\t1382\t 346 \t 1,728 \t\t500\t 2,228 \t47-6  12樓之3
+12FD11\t吳珮芬\t1089\t 272 \t 1,361 \t\t500\t 1,861 \t47-6  12樓之5
+12FD12\t蔡映瑩\t1296\t 324 \t 1,620 \t\t500\t 2,120 \t47-5  12樓之2
+12FD13\t蔯莉芳\t1289\t 322 \t 1,611 \t\t500\t 2,111 \t47-5  12樓之1
+12FD15\t黃鵬文\t1289\t 322 \t 1,611 \t\t500\t 2,111 \t47-3  12樓之2
+12FD16\t謝佩璇\t1296\t 324 \t 1,620 \t\t500\t 2,120 \t47-3  12樓之1
+12FD17\t施易楷\t1443\t 361 \t 1,804 \t500\t500\t 2,804 \t47-1  12樓之5
+12FD18\t洪名旭\t1434\t 359 \t 1,793 \t\t500\t 2,293 \t47-1  12樓之6
+12FD19\t劉趙春靜\t966\t 242 \t 1,208 \t\t500\t 1,708 \t47-1  12樓之7
+12FD20\t永翔洗衣企業(12)\t1089\t 272 \t 1,361 \t500\t500\t 2,361 \t47-1  12樓之8
+12FD21\t吳珮甄\t1388\t 347 \t 1,735 \t300\t500\t 2,535 \t47-1  12樓之1
+12FD22\t陳葶瑋\t1436\t 359 \t 1,795 \t500\t500\t 2,795 \t47-1  12樓之2
+12FD23\t姚明柔\t1108\t 277 \t 1,385 \t\t500\t 1,885 \t47-1  12樓之3
+13FD01\t吳宗霖\t1296\t 324 \t 1,620 \t500\t500\t 2,620 \t47  13樓之2
+13FD02\t黃漢隆\t1289\t 322 \t 1,611 \t\t500\t 2,111 \t47  13樓之1
+13FD03\t胡雅琳\t1289\t 322 \t 1,611 \t\t500\t 2,111 \t47-7  13樓之2
+13FD05\t謝嘉雯\t1296\t 324 \t 1,620 \t500\t500\t 2,620 \t47-7  13樓之1
+13FD06\t黃秀雯\t1382\t 346 \t 1,728 \t500\t500\t 2,728 \t47-6  13樓之6
+13FD07\t陳彩君\t1439\t 360 \t 1,799 \t500\t500\t 2,799 \t47-6  13樓之7
+13FD08\t翁儀瀞\t1053\t 263 \t 1,316 \t500\t500\t 2,316 \t47-6  13樓之1
+13FD09\t劉勝煌\t1439\t 360 \t 1,799 \t500\t500\t 2,799 \t47-6  13樓之2
+13FD10\t蘇映丹\t1382\t 346 \t 1,728 \t500\t500\t 2,728 \t47-6  13樓之3
+13FD11\t張麗華\t1089\t 272 \t 1,361 \t\t500\t 1,861 \t47-6  13樓之5
+13FD12\t賴盈如\t1296\t 324 \t 1,620 \t300\t500\t 2,420 \t47-5  13樓之2
+13FD13\t詹雅玲\t1289\t 322 \t 1,611 \t300\t500\t 2,411 \t47-5  13樓之1
+13FD15\t陳雅萍\t1289\t 322 \t 1,611 \t500\t500\t 2,611 \t47-3  13樓之2
+13FD16\t劉珍忠\t1296\t 324 \t 1,620 \t500\t500\t 2,620 \t47-3  13樓之1
+13FD17\t范賢娟\t1443\t 361 \t 1,804 \t500\t500\t 2,804 \t47-1  13樓之5
+13FD18\t楊素櫻\t1433\t 358 \t 1,791 \t500\t500\t 2,791 \t47-1  13樓之6
+13FD19\t王世寬\t966\t 242 \t 1,208 \t500\t500\t 2,208 \t47-1  13樓之7
+13FD20\t李玉如\t1089\t 272 \t 1,361 \t\t500\t 1,861 \t47-1  13樓之8
+13FD21\t吳曼瑋\t1388\t 347 \t 1,735 \t500\t500\t 2,735 \t47-1  13樓之1
+13FD22\t葉智銘\t1436\t 359 \t 1,795 \t500\t500\t 2,795 \t47-1  13樓之2
+13FD23\t徐韋槙\t1108\t 277 \t 1,385 \t\t500\t 2,385 \t47-1  13樓之3
+14FD01\t穆沂萱\t1298\t 325 \t 1,623 \t\t500\t 2,123 \t47  14樓之2
+14FD02\t李承漢\t1291\t 323 \t 1,614 \t\t500\t 2,114 \t47  14樓之1
+14FD03\t楊蕎婷\t1291\t 323 \t 1,614 \t300\t500\t 2,414 \t47-7  14樓之2
+14FD05\t林益成\t1298\t 325 \t 1,623 \t300\t500\t 2,423 \t47-7  14樓之1
+14FD06\t劉彥宏\t1386\t 347 \t 1,733 \t500\t500\t 2,733 \t47-6  14樓之6
+14FD07\t陳彥儒\t1444\t 361 \t 1,805 \t500\t500\t 2,805 \t47-6  14樓之7
+14FD08\t廖幸蓁\t1053\t 263 \t 1,316 \t300\t500\t 2,116 \t47-6  14樓之1
+14FD09\t洪晉偉\t1444\t 361 \t 1,805 \t\t500\t 2,305 \t47-6  14樓之2
+14FD10\t侯明濬\t1386\t 347 \t 1,733 \t500\t500\t 2,733 \t47-6  14樓之3
+14FD11\t梁益艷\t1093\t 273 \t 1,366 \t500\t500\t 2,366 \t47-6  14樓之5
+14FD12\t蕭雅如\t1296\t 324 \t 1,620 \t\t500\t 2,120 \t47-5  14樓之2
+14FD13\t林明富\t1291\t 323 \t 1,614 \t300\t500\t 2,414 \t47-5  14樓之1
+14FD15\t翁宇杰\t1291\t 323 \t 1,614 \t500\t500\t 2,614 \t47-3  14樓之2
+14FD16\t黃惠譽\t1298\t 325 \t 1,623 \t300\t500\t 2,423 \t47-3  14樓之1
+14FD17\t蕭敏群\t1447\t 362 \t 1,809 \t500\t500\t 2,809 \t47-1  14樓之5
+14FD18\t萬龍瑞\t1438\t 360 \t 1,798 \t500\t500\t 2,798 \t47-1  14樓之6
+14FD19\t李文盛\t966\t 242 \t 1,208 \t500\t500\t 2,208 \t47-1  14樓之7
+14FD20\t徐怡貞\t1089\t 272 \t 1,361 \t500\t500\t 2,361 \t47-1  14樓之8
+14FD21\t永翔洗衣企業\t1393\t 348 \t 1,741 \t500\t500\t 2,741 \t47-1  14樓之1
+14FD22\t邱嘉信\t1440\t 360 \t 1,800 \t500\t500\t 2,800 \t47-1  14樓之2
+14FD23\t蔡旻燕\t1107\t 277 \t 1,384 \t500\t500\t 2,384 \t47-1  14樓之3`;
+
+/* ============ 小工具 ============ */
+const el = id => document.getElementById(id);
+const NT = n => (n||0).toLocaleString("zh-TW");
+const toInt = v => {
+  if (v==null) return 0;
+  const s = String(v).replace(/[^\d\-]/g,"").trim();
+  return s? parseInt(s,10):0;
+};
+function parseTSV(tsv){
+  const lines = tsv.split(/\r?\n/).filter(Boolean);
+  const hdr = lines.shift().split("\t");
+  const idx = Object.fromEntries(hdr.map((h,i)=>[h,i]));
+  const rows = [];
+  for (const line of lines){
+    const cols = line.split("\t");
+    rows.push({
+      code: cols[idx["住戶代號"]]?.trim(),
+      owner: cols[idx["區權人"]]?.trim(),
+      fee_mgmt_base: toInt(cols[idx["管理費"]]),
+      fee_elev_maint: toInt(cols[idx["電梯維修"]]),
+      fee_mgmt_50: toInt(cols[idx["管理費(50/坪)"]]),
+      fee_parking: toInt(cols[idx["車位"]]),
+      fee_elev_buy: toInt(cols[idx["採購電梯"]]),
+      sum: toInt(cols[idx["合計"]]),
+      addr: (cols[idx["住址"]]||"").replace(/\s+/g," ").trim()
+    });
+  }
+  return rows;
+}
+const MASTER = parseTSV(MASTER_TSV);
+
+// 依住址首段對應棟別
+function addrToBuilding(addr){
+  const a = addr.replace(/\s+/g," ");
+  if (a.startsWith("47-7")) return "乙";
+  if (a.startsWith("47-6")) return "丙";
+  if (a.startsWith("47-5")) return "丁";
+  if (a.startsWith("47-3")) return "戊";
+  if (a.startsWith("47-1")) return "己";
+  return "甲"; // 其餘視作 47
+}
+
+// 轉 index
+const byCode = Object.fromEntries(MASTER.map(r=>[r.code, r]));
+const byBuilding = MASTER.reduce((acc,r)=>{
+  const b = addrToBuilding(r.addr);
+  (acc[b] ||= []).push(r);
+  return acc;
+}, {});
+
+// 年月下拉
+function fillYearMonth(){
+  const ys=[2025,2026,2027];
+  el("yStart").innerHTML = ys.map(y=>`<option>${y}</option>`).join("");
+  el("yEnd").innerHTML = ys.map(y=>`<option>${y}</option>`).join("");
+  const ms=[...Array(12)].map((_,i)=>i+1);
+  el("mStart").innerHTML = ms.map(m=>`<option>${m}</option>`).join("");
+  el("mEnd").innerHTML = ms.map(m=>`<option>${m}</option>`).join("");
+}
+
+// 計算起訖含首尾的期數
+function ymToNum(y,m){ return y*12 + (m-1); }
+function monthCount(y1,m1,y2,m2){
+  return ymToNum(y2,m2) - ymToNum(y1,m1) + 1;
+}
+function parseYYYYMM(s){
+  if(!s) return null;
+  const [y,m] = s.split("-").map(x=>parseInt(x,10));
+  if (!y || !m) return null;
+  return {y, m};
+}
+function currentPeriods(){
+  const custS = parseYYYYMM(el("startCustom").value);
+  const custE = parseYYYYMM(el("endCustom").value);
+  let y1 = parseInt(el("yStart").value,10), m1 = parseInt(el("mStart").value,10);
+  let y2 = parseInt(el("yEnd").value,10), m2 = parseInt(el("mEnd").value,10);
+  if (custS) { y1 = custS.y; m1 = custS.m; }
+  if (custE) { y2 = custE.y; m2 = custE.m; }
+  if (!y1 || !m1 || !y2 || !m2) return 0;
+  if (ymToNum(y2,m2) < ymToNum(y1,m1)) return 0;
+  return monthCount(y1,m1,y2,m2);
+}
+function periodText(){
+  const custS = parseYYYYMM(el("startCustom").value);
+  const custE = parseYYYYMM(el("endCustom").value);
+  const y1 = custS? custS.y : parseInt(el("yStart").value,10);
+  const m1 = custS? custS.m : parseInt(el("mStart").value,10);
+  const y2 = custE? custE.y : parseInt(el("yEnd").value,10);
+  const m2 = custE? custE.m : parseInt(el("mEnd").value,10);
+  if(!y1||!m1||!y2||!m2) return "";
+  return `${y1}年 ${m1} 月 〜 ${y2}年 ${m2} 月（共 ${currentPeriods()} 期）`;
+}
+
+// 建置棟別/住址
+function fillBuildings(){
+  const keys = ["甲","乙","丙","丁","戊","己"].filter(k=>byBuilding[k]?.length);
+  el("building").innerHTML = keys.map(k=>`<option>${k}</option>`).join("");
+  updateAddrOptions();
+}
+function updateAddrOptions(){
+  const b = el("building").value;
+  const rows = (byBuilding[b]||[]).slice().sort((a,b)=>{
+    const na = a.addr.replace(/[^\d]/g,"");
+    const nb = b.addr.replace(/[^\d]/g,"");
+    return na.localeCompare(nb, 'zh-Hant');
+  });
+  el("address").innerHTML = rows.map(r=>{
+    const txt = `${r.addr}  ${r.code}`;
+    return `<option value="${r.code}">${txt}</option>`;
+  }).join("");
+  onAddressChange();
+}
+function onAddressChange(){
+  const code = el("address").value;
+  const r = byCode[code];
+  if (!r) return;
+  el("owner").value = r.owner || "";
+  // 金額帶管理費(50/坪)、車位、採購電梯
+  el("feeMgmt").value = r.fee_mgmt_50 || 0;
+  el("feeParking").value = r.fee_parking || 0;
+  el("feeElev").value = r.fee_elev_buy || 0;
+  refreshTotals();
+}
+
+// 設定
+let settings = JSON.parse(localStorage.getItem("receipt_settings")||"{}");
+function saveSettings(){
+  settings = {
+    orgName: el("orgName").value,
+    orgInfo: el("orgInfo").value,
+    noPrefix: el("noPrefix").value,
+    noStart: el("noStart").value
+  };
+  localStorage.setItem("receipt_settings", JSON.stringify(settings));
+  alert("設定已儲存");
+}
+function loadSettings(){
+  if (settings.orgName) el("orgName").value = settings.orgName;
+  if (settings.orgInfo) el("orgInfo").value = settings.orgInfo;
+  if (settings.noPrefix) el("noPrefix").value = settings.noPrefix;
+  if (settings.noStart) el("noStart").value = settings.noStart;
+}
+
+// 收據號碼
+function nextNo(){
+  const prefix = settings.noPrefix || "";
+  const start = parseInt(settings.noStart||"1",10);
+  const used = list.map(r=>r.receiptNo).filter(v=>v && v.startsWith(prefix));
+  let maxN = 0;
+  for (const v of used){
+    const n = parseInt(v.replace(prefix,""),10);
+    if(!isNaN(n)) maxN = Math.max(maxN,n);
+  }
+  const nxt = Math.max(start, maxN+1);
+  return prefix + String(nxt).padStart(4,"0");
+}
+
+// 簽名板
+const canvas = el("signPad");
+const ctx = canvas.getContext("2d");
+ctx.lineWidth=2; ctx.lineCap="round";
+let drawing=false, last=null;
+function pos(evt){
+  const rect = canvas.getBoundingClientRect();
+  const x = (evt.touches?evt.touches[0].clientX:evt.clientX) - rect.left;
+  const y = (evt.touches?evt.touches[0].clientY:evt.clientY) - rect.top;
+  return { x: x*canvas.width/rect.width, y: y*canvas.height/rect.height };
+}
+function start(e){ drawing=true; last=pos(e); }
+function move(e){ if(!drawing) return; const p=pos(e); ctx.beginPath(); ctx.moveTo(last.x,last.y); ctx.lineTo(p.x,p.y); ctx.stroke(); last=p; }
+function end(){ drawing=false; }
+canvas.addEventListener("mousedown", start);
+canvas.addEventListener("mousemove", move);
+canvas.addEventListener("mouseup", end);
+canvas.addEventListener("mouseleave", end);
+canvas.addEventListener("touchstart", (e)=>{e.preventDefault(); start(e);}, {passive:false});
+canvas.addEventListener("touchmove", (e)=>{e.preventDefault(); move(e);}, {passive:false});
+canvas.addEventListener("touchend", (e)=>{e.preventDefault(); end(e);}, {passive:false});
+el("clearSign").addEventListener("click", ()=>{ ctx.clearRect(0,0,canvas.width,canvas.height); });
+
+// 即時計算
+function refreshTotals(){
+  const per = currentPeriods();
+  el("periods").value = per? per : "";
+  const mgmt = toInt(el("feeMgmt").value);
+  const park = toInt(el("feeParking").value);
+  const elev = toInt(el("feeElev").value);
+  const otherOnce = toInt(el("feeOtherOnce").value);
+  const deductEach = toInt(el("deductEach").value);
+  const monthly = mgmt + park + elev;
+  el("monthlyTotal").value = monthly? NT(monthly) : "";
+  return {
+    per, mgmt, park, elev, otherOnce, deductEach, monthly,
+    totalMgmt: mgmt*per, totalPark: park*per, totalElev: elev*per,
+    totalDeduct: deductEach*per,
+    grand: monthly*per - deductEach*per + otherOnce
+  };
+}
+
+// 列印區填值
+function fillPrint(){
+  const S = refreshTotals();
+  const code = el("address").value;
+  const r = byCode[code]||{};
+  el("p_orgName").textContent = settings.orgName || "收據";
+  el("p_orgInfo").textContent = (settings.orgInfo||"").replace(/\n/g, " · ");
+  el("p_date").textContent = el("date").value;
+  el("p_receiptNo").textContent = el("receiptNo").value || "";
+  el("p_fulladdr").textContent = `${r.addr||""}`;
+  el("p_code").textContent = code || "";
+  el("p_owner").textContent = el("owner").value || "";
+  el("p_manager").textContent = el("manager").value || "";
+  el("p_periodText").textContent = periodText();
+  el("p_monthly").textContent = NT(S.monthly);
+  el("p_deduct_each").textContent = NT(S.deductEach);
+  el("p_periods2").textContent = S.per;
+  el("p_deduct_total").textContent = NT(S.totalDeduct);
+  el("p_other_once").textContent = NT(S.otherOnce);
+  el("p_grand").textContent = NT(S.grand);
+
+  // 明細三列
+  const rows = [
+    ["管理費", S.mgmt, S.per, S.totalMgmt],
+    ["車位清潔費", S.park, S.per, S.totalPark],
+    ["電梯分攤費", S.elev, S.per, S.totalElev],
+  ];
+  el("p_items").innerHTML = rows.map(([n,each,p,t])=>
+    `<tr><td>${n}</td><td class="right">$${NT(each)}</td><td class="right">${p||0} 期</td><td class="right">$${NT(t)}</td></tr>`
+  ).join("");
+
+  // 簽名圖
+  el("p_sign").src = canvas.toDataURL();
+}
+
+// 列表（暫存 localStorage）
+let list = JSON.parse(localStorage.getItem("receipt_list")||"[]");
+function renderList(){
+  el("list").innerHTML = list.map((r,i)=>`
+    <tr>
+      <td>${r.receiptNo||""}</td>
+      <td>${r.periodText||""}</td>
+      <td>${r.addr||""} <div class="hint mono">${r.code||""}</div></td>
+      <td>${r.owner||""}</td>
+      <td class="right">$${NT(r.grand||0)}</td>
+      <td class="no-print">
+        <button onclick="printRow(${i})">列印</button>
+        <button onclick="delRow(${i})">刪除</button>
+      </td>
+    </tr>
+  `).join("");
+}
+window.printRow = function(idx){
+  const r = list[idx]; if(!r) return;
+  el("receiptNo").value = r.receiptNo||"";
+  el("date").value = r.date||"";
+  el("building").value = addrToBuilding(r.addr||"");
+  updateAddrOptions();
+  el("address").value = r.code||"";
+  onAddressChange();
+  el("owner").value = r.owner||"";
+  el("manager").value = r.manager||"";
+  // 年月（若當時用自訂，就帶回自訂）
+  if (r.startCustom && r.endCustom){
+    el("startCustom").value = r.startCustom; el("endCustom").value = r.endCustom;
+  } else {
+    el("yStart").value = r.y1; el("mStart").value = r.m1;
+    el("yEnd").value = r.y2; el("mEnd").value = r.m2;
+  }
+  el("feeMgmt").value = r.mgmt||0;
+  el("feeParking").value = r.park||0;
+  el("feeElev").value = r.elev||0;
+  el("feeOtherOnce").value = r.otherOnce||0;
+  el("deductEach").value = r.deductEach||0;
+
+  // 簽名回填
+  const img = new Image();
+  img.onload = ()=>{ ctx.clearRect(0,0,canvas.width,canvas.height); ctx.drawImage(img,0,0,canvas.width,canvas.height); fillPrint(); window.print(); };
+  img.src = r.sign||"";
+};
+
+window.delRow = function(idx){
+  list.splice(idx,1);
+  localStorage.setItem("receipt_list", JSON.stringify(list));
+  renderList();
+};
+
+function addRow(){
+  // 自動編號
+  if (!el("receiptNo").value) el("receiptNo").value = nextNo();
+
+  const S = refreshTotals();
+  const code = el("address").value;
+  const r = byCode[code]||{};
+  const custS = el("startCustom").value;
+  const custE = el("endCustom").value;
+
+  const row = {
+    receiptNo: el("receiptNo").value,
+    date: el("date").value,
+    code: code, addr: r.addr, owner: el("owner").value,
+    manager: el("manager").value,
+    y1: parseInt(el("yStart").value,10), m1: parseInt(el("mStart").value,10),
+    y2: parseInt(el("yEnd").value,10), m2: parseInt(el("mEnd").value,10),
+    startCustom: custS || null, endCustom: custE || null,
+    per: S.per, mgmt:S.mgmt, park:S.park, elev:S.elev, otherOnce:S.otherOnce, deductEach:S.deductEach,
+    monthly:S.monthly, grand:S.grand, sign: canvas.toDataURL(),
+    periodText: periodText()
+  };
+  list.unshift(row);
+  localStorage.setItem("receipt_list", JSON.stringify(list));
+  renderList();
+
+  // 清理簽名與「一次性」欄
+  el("feeOtherOnce").value = "";
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+}
+
+function printNow(){
+  fillPrint();
+  window.print();
+}
+
+/* ============ 事件繫結與初始化 ============ */
+function init(){
+  // 日期預設今天
+  const today = new Date();
+  const pad = n=>String(n).padStart(2,"0");
+  el("date").value = `${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
+
+  fillYearMonth();
+  fillBuildings();
+
+  loadSettings();
+  renderList();
+
+  ["yStart","mStart","yEnd","mEnd","startCustom","endCustom","feeMgmt","feeParking","feeElev","feeOtherOnce","deductEach"]
+    .forEach(id=>el(id).addEventListener("input", refreshTotals));
+  el("building").addEventListener("change", updateAddrOptions);
+  el("address").addEventListener("change", onAddressChange);
+
+  el("saveSettings").addEventListener("click", saveSettings);
+  el("resetSettings").addEventListener("click", ()=>{ if(confirm("確定清除設定？")) { localStorage.removeItem("receipt_settings"); settings={}; location.reload(); }});
+
+  el("addRow").addEventListener("click", addRow);
+  el("printNow").addEventListener("click", printNow);
+  el("clearList").addEventListener("click", ()=>{ if(confirm("確定清空列表？")){ list=[]; localStorage.removeItem("receipt_list"); renderList(); }});
+
+  // 初次帶入第一筆
+  onAddressChange();
+  refreshTotals();
+}
+init();
+</script>
+</body>
+</html>
 
